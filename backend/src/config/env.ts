@@ -8,8 +8,7 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
 
   // Database
-  MONGODB_URI:
-    "mongodb+srv://pratap562:pratap562@cluster0.wy2oixy.mongodb.net/hospitalsagar?retryWrites=true",
+  MONGODB_URI: process.env.MONGODB_URI || "write-your-mongodb-uri-here",
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET || "your-secret-key-change-in-production",
