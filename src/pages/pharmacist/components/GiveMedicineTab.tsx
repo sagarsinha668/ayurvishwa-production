@@ -36,7 +36,7 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
     setLoading(true);
     setVisit(null);
     setMedicines([]);
-    
+
     try {
       const result = await searchPharmacistVisitOptimized(parseInt(tokenNumber), hospitalId);
       if (result) {
@@ -77,17 +77,24 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
 
   const handleGiveMedicine = async () => {
     if (!visit) return;
-    
-    // Validate
-    const invalid = medicines.some(m => !m.medicineName || !m.medicineId || m.quantity <= 0);
+
+    // Validate: Backend only needs medicineName (it looks up by name), not medicineId
+    const invalid = medicines.some(m => !m.medicineName?.trim() || (m.quantity ?? 0) <= 0);
     if (invalid) {
-      toast.error('Please ensure all medicines are selected from the list and have a quantity > 0');
+      toast.error('Please ensure all medicines have a name and quantity greater than 0');
+      return;
+    }
+
+    // Ensure visit ID exists
+    const visitId = (visit as any)._id || (visit as any).id;
+    if (!visitId) {
+      toast.error('Visit ID is missing. Please search by token again.');
       return;
     }
 
     setDispensing(true);
     try {
-      await giveMedicines((visit as any)._id || (visit as any).id, hospitalId, medicines);
+      await giveMedicines(visitId, hospitalId, medicines);
       toast.success('Medicines dispensed successfully');
       setVisit({ ...visit, medicineGiven: true });
     } catch (error: any) {
@@ -140,15 +147,15 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                   <h2 className="text-lg font-bold">{(visit as any).patientId?.name}</h2>
-                   <p className="text-sm text-muted-foreground">{calculateAge((visit as any).patientId?.dob)} yrs, {(visit as any).patientId?.sex}</p>
+                  <h2 className="text-lg font-bold">{(visit as any).patientId?.name}</h2>
+                  <p className="text-sm text-muted-foreground">{calculateAge((visit as any).patientId?.dob)} yrs, {(visit as any).patientId?.sex}</p>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="h-4 w-4" /> {(visit as any).patientId?.phoneNo || (visit as any).patientId?.phoneNumber}
                   </div>
                   <div className="flex items-start gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4 mt-0.5" /> 
+                    <MapPin className="h-4 w-4 mt-0.5" />
                     {(visit as any).patientId?.address?.street && `${(visit as any).patientId.address.street}, `}
                     {(visit as any).patientId?.address?.city}
                   </div>
@@ -181,49 +188,49 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
               </CardHeader>
               <CardContent>
                 {visit.medicineGiven ? (
-                   <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-green-600 font-medium bg-green-50 p-3 rounded-lg border border-green-100">
-                        <CheckCircle2 className="h-5 w-5" />
-                        Medicines already dispensed for this visit
-                      </div>
-                      
-                      <div className="space-y-3">
-                        {(visit.givenMedicines || []).map((m, i) => (
-                          <Card key={i} className="bg-muted/30 border-primary/10">
-                            <div className="p-4 space-y-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Pill className="h-3.5 w-3.5 text-primary" />
-                                  <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">Dispensed Medicine</span>
-                                </div>
-                                <p className="text-base font-bold text-primary leading-tight break-words">
-                                  {m.medicineName}
-                                </p>
-                              </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-green-600 font-medium bg-green-50 p-3 rounded-lg border border-green-100">
+                      <CheckCircle2 className="h-5 w-5" />
+                      Medicines already dispensed for this visit
+                    </div>
 
-                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] uppercase text-muted-foreground font-bold">Qty</Label>
-                                  <p className="text-sm font-bold">{m.quantity}</p>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] uppercase text-muted-foreground font-bold">Dosage</Label>
-                                  <p className="text-sm font-bold">{m.dosage || 'N/A'}</p>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] uppercase text-muted-foreground font-bold">Kala</Label>
-                                  <p className="text-sm font-bold">{m.kala || 'N/A'}</p>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] uppercase text-muted-foreground font-bold">Anupana</Label>
-                                  <p className="text-sm font-bold">{m.anupana || 'N/A'}</p>
-                                </div>
+                    <div className="space-y-3">
+                      {(visit.givenMedicines || []).map((m, i) => (
+                        <Card key={i} className="bg-muted/30 border-primary/10">
+                          <div className="p-4 space-y-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Pill className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">Dispensed Medicine</span>
+                              </div>
+                              <p className="text-base font-bold text-primary leading-tight break-words">
+                                {m.medicineName}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Qty</Label>
+                                <p className="text-sm font-bold">{m.quantity}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Dosage</Label>
+                                <p className="text-sm font-bold">{m.dosage || 'N/A'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Kala</Label>
+                                <p className="text-sm font-bold">{m.kala || 'N/A'}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] uppercase text-muted-foreground font-bold">Anupana</Label>
+                                <p className="text-sm font-bold">{m.anupana || 'N/A'}</p>
                               </div>
                             </div>
-                          </Card>
-                        ))}
-                      </div>
-                   </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="space-y-3">
@@ -237,8 +244,8 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                                   <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">Select Medicine</span>
                                 </div>
                                 <div className="relative">
-                                  <Input 
-                                    value={activeSearchIndex === i ? searchTerm : m.medicineName} 
+                                  <Input
+                                    value={activeSearchIndex === i ? searchTerm : m.medicineName}
                                     onFocus={() => {
                                       setActiveSearchIndex(i);
                                       setSearchTerm(m.medicineName);
@@ -251,8 +258,8 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
 
                                   {activeSearchIndex === i && (
                                     <>
-                                      <div 
-                                        className="fixed inset-0 z-40 bg-transparent" 
+                                      <div
+                                        className="fixed inset-0 z-40 bg-transparent"
                                         onClick={() => setActiveSearchIndex(null)}
                                       />
                                       <Card className="absolute z-50 w-full mt-1.5 shadow-2xl border-primary/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
@@ -266,10 +273,10 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                                                   className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-primary/5 rounded-md transition-all group"
                                                   onClick={() => {
                                                     const updated = [...medicines];
-                                                    updated[i] = { 
-                                                      ...updated[i], 
+                                                    updated[i] = {
+                                                      ...updated[i],
                                                       medicineName: item.name,
-                                                      medicineId: item.id 
+                                                      medicineId: item.id
                                                     };
                                                     setMedicines(updated);
                                                     setActiveSearchIndex(null);
@@ -299,9 +306,9 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                                   )}
                                 </div>
                               </div>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => handleRemoveMedicine(i)}
                                 className="h-8 w-8 text-destructive hover:bg-destructive/10 -mt-1 -mr-1 shrink-0"
                               >
@@ -312,18 +319,18 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                               <div className="space-y-1.5">
                                 <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest">Qty</Label>
-                                <Input 
-                                  type="number" 
-                                  min="1" 
-                                  value={m.quantity ?? ''} 
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={m.quantity ?? ''}
                                   onChange={(e) => handleUpdateMedicine(i, 'quantity', parseInt(e.target.value) || 0)}
                                   className="h-9 font-bold bg-background"
                                 />
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest">Dosage</Label>
-                                <Input 
-                                  value={m.dosage} 
+                                <Input
+                                  value={m.dosage}
                                   onChange={(e) => handleUpdateMedicine(i, 'dosage', e.target.value)}
                                   placeholder="e.g. 1-0-1"
                                   className="h-9 font-bold bg-background"
@@ -331,8 +338,8 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest">Kala</Label>
-                                <Input 
-                                  value={m.kala || ''} 
+                                <Input
+                                  value={m.kala || ''}
                                   onChange={(e) => handleUpdateMedicine(i, 'kala', e.target.value)}
                                   placeholder="e.g. Before Meal"
                                   className="h-9 font-bold bg-background"
@@ -340,8 +347,8 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest">Anupana</Label>
-                                <Input 
-                                  value={m.anupana || ''} 
+                                <Input
+                                  value={m.anupana || ''}
                                   onChange={(e) => handleUpdateMedicine(i, 'anupana', e.target.value)}
                                   placeholder="e.g. Warm Water"
                                   className="h-9 font-bold bg-background"
@@ -349,8 +356,8 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                               </div>
                               <div className="space-y-1.5 col-span-2 md:col-span-1 lg:col-span-1">
                                 <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest">Instructions</Label>
-                                <Input 
-                                  value={m.instructions || ''} 
+                                <Input
+                                  value={m.instructions || ''}
                                   onChange={(e) => handleUpdateMedicine(i, 'instructions', e.target.value)}
                                   placeholder="Special notes..."
                                   className="h-9 text-xs italic bg-background"
@@ -371,9 +378,9 @@ const GiveMedicineTab: React.FC<GiveMedicineTabProps> = ({ hospitalId }) => {
                     )}
                     <Separator />
                     <div className="flex justify-end">
-                      <Button 
-                        onClick={handleGiveMedicine} 
-                        disabled={dispensing || medicines.length === 0} 
+                      <Button
+                        onClick={handleGiveMedicine}
+                        disabled={dispensing || medicines.length === 0}
                         size="lg"
                         className="bg-emerald-600 hover:bg-emerald-700"
                       >

@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { Visit } from '../models/Visit';
 import { Medicine } from '../models/Medicine';
 
@@ -50,8 +49,8 @@ export const getOptimizedVisitByToken = async (req: Request, res: Response) => {
       hospitalId,
       createdAt: { $gte: start, $lte: end }
     })
-    .populate('patientId', 'name sex dob phoneNo address')
-    .select('visitToken patientId prescribedMedicines medicineGiven givenMedicines');
+      .populate('patientId', 'name sex dob phoneNo address')
+      .select('visitToken patientId prescribedMedicines medicineGiven givenMedicines');
 
     if (!visit) {
       return res.status(404).json({ message: 'Visit not found for this token today' });
@@ -64,9 +63,6 @@ export const getOptimizedVisitByToken = async (req: Request, res: Response) => {
 };
 
 export const giveMedicines = async (req: Request, res: Response) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { visitId, hospitalId, medicines } = req.body;
 
@@ -74,49 +70,43 @@ export const giveMedicines = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Invalid request data' });
     }
 
-    const visit = await Visit.findById(visitId).session(session);
+    const visit = await Visit.findById(visitId);
     if (!visit) {
-      throw new Error('Visit not found');
+      return res.status(400).json({ message: 'Visit not found' });
     }
 
     if (visit.medicineGiven) {
-      throw new Error('Medicines already given for this visit');
+      return res.status(400).json({ message: 'Medicines already given for this visit' });
     }
 
-    // Check inventory and prepare updates
+    // Validate all medicines and stock first
     for (const item of medicines) {
-      const medicine = await Medicine.findOne({ 
-        name: item.medicineName 
-      }).session(session);
-
+      const medicine = await Medicine.findOne({ name: item.medicineName });
       if (!medicine) {
-        throw new Error(`Medicine "${item.medicineName}" not found in inventory`);
+        return res.status(400).json({ message: `Medicine "${item.medicineName}" not found in inventory` });
       }
-
       if (medicine.quantity < item.quantity) {
-        throw new Error(`Insufficient stock for "${item.medicineName}". Available: ${medicine.quantity}, Required: ${item.quantity}`);
+        return res.status(400).json({ message: `Insufficient stock for "${item.medicineName}". Available: ${medicine.quantity}, Required: ${item.quantity}` });
       }
+    }
 
-      // Update quantity
-      medicine.quantity -= item.quantity;
-      if (medicine.quantity < 0) {
-        throw new Error(`Quantity for "${item.medicineName}" cannot go below 0`);
+    // Deduct inventory
+    for (const item of medicines) {
+      const medicine = await Medicine.findOne({ name: item.medicineName });
+      if (medicine) {
+        medicine.quantity -= item.quantity;
+        await medicine.save();
       }
-      await medicine.save({ session });
     }
 
     // Update visit
     visit.medicineGiven = true;
     visit.givenMedicines = medicines;
-    await visit.save({ session });
+    await visit.save();
 
-    await session.commitTransaction();
     res.json({ success: true, message: 'Medicines dispensed successfully' });
   } catch (error: any) {
-    await session.abortTransaction();
-    res.status(400).json({ message: error.message });
-  } finally {
-    session.endSession();
+    res.status(400).json({ message: error.message || 'Failed to dispense medicines' });
   }
 };
 
@@ -169,9 +159,9 @@ export const updateMedicine = async (req: Request, res: Response) => {
     const { name, quantity, lowStockThreshold } = req.body;
 
     if (lowStockThreshold !== undefined && quantity !== undefined) {
-        if (lowStockThreshold < 0 || lowStockThreshold >= quantity) {
-            return res.status(400).json({ message: 'Threshold quantity must be greater than 0 and less than medicine quantity' });
-        }
+      if (lowStockThreshold < 0 || lowStockThreshold >= quantity) {
+        return res.status(400).json({ message: 'Threshold quantity must be greater than 0 and less than medicine quantity' });
+      }
     }
 
     const updatedMedicine = await Medicine.findByIdAndUpdate(
@@ -190,7 +180,7 @@ export const updateMedicine = async (req: Request, res: Response) => {
   }
 };
 
-export const getMedicineNames = async (req: Request, res: Response) => {
+export const getMedicineNames = async (_req: Request, res: Response) => {
   try {
     const medicines = await Medicine.find({}).select('name _id').sort({ name: 1 });
     res.json(medicines.map(m => ({ id: m._id, name: m.name })));
@@ -213,21 +203,21 @@ export const getMedicineById = async (req: Request, res: Response) => {
 };
 
 export const getMedicineByExactName = async (req: Request, res: Response) => {
-    try {
-        const { name } = req.query;
-        if (!name) {
-            return res.status(400).json({ message: 'Name is required' });
-        }
-
-        const medicine = await Medicine.findOne({ name });
-        if (!medicine) {
-            return res.status(404).json({ message: 'Medicine not found' });
-        }
-
-        res.json(medicine);
-    } catch (error: any) {
-        res.status(500).json({ message: error.message });
+  try {
+    const { name } = req.query;
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
     }
+
+    const medicine = await Medicine.findOne({ name });
+    if (!medicine) {
+      return res.status(404).json({ message: 'Medicine not found' });
+    }
+
+    res.json(medicine);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
 }
 
 export const bulkCreateMedicines = async (req: Request, res: Response) => {
@@ -262,12 +252,12 @@ export const bulkUpdateMedicines = async (req: Request, res: Response) => {
     const operations = medicines.map((m: any) => ({
       updateOne: {
         filter: { _id: m.id || m._id },
-        update: { 
-          $set: { 
-            name: m.name, 
-            quantity: m.quantity, 
-            lowStockThreshold: m.lowStockThreshold 
-          } 
+        update: {
+          $set: {
+            name: m.name,
+            quantity: m.quantity,
+            lowStockThreshold: m.lowStockThreshold
+          }
         }
       }
     }));
