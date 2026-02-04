@@ -14,7 +14,7 @@ const medicineSchema = new Schema<MedicineDocument>(
   }
 );
 
-// Unique medicine names
-medicineSchema.index({ name: 1 }, { unique: true });
+// // Unique medicine names
+// medicineSchema.index({ name: 1 }, { unique: true });
 
 export const Medicine = model<MedicineDocument>('Medicine', medicineSchema);
