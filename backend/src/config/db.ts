@@ -4,7 +4,7 @@ import { env } from "./env";
 export const connectDB = async (): Promise<void> => {
   try {
     const conn = await mongoose.connect(env.MONGODB_URI as string, {
-      autoIndex: false,
+      autoIndex: true,
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`);
